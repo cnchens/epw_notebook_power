@@ -1,0 +1,181 @@
+C251 COMPILER V5.60.0,  APP_DMA_AD                                                         26/11/24  21:24:43  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE APP_DMA_AD
+OBJECT MODULE PLACED IN .\list\APP_DMA_AD.obj
+COMPILER INVOKED BY: C:\Keil_v5\C251\BIN\C251.EXE ..\App\src\APP_DMA_AD.c XSMALL INTR2 BROWSE INCDIR(..\Driver\inc;..\Us
+                    -er;..\App\inc) DEBUG PRINT(.\list\APP_DMA_AD.lst) TABS(2) OBJECT(.\list\APP_DMA_AD.obj) 
+
+stmt  level    source
+
+    1          /*---------------------------------------------------------------------*/
+    2          /* --- STC MCU Limited ------------------------------------------------*/
+    3          /* --- STC 1T Series MCU Demo Programme -------------------------------*/
+    4          /* --- Mobile: (86)13922805190 ----------------------------------------*/
+    5          /* --- Fax: 86-0513-55012956,55012947,55012969 ------------------------*/
+    6          /* --- Tel: 86-0513-55012928,55012929,55012966 ------------------------*/
+    7          /* --- Web: www.STCMCU.com --------------------------------------------*/
+    8          /* --- Web: www.STCMCUDATA.com  ---------------------------------------*/
+    9          /* --- QQ:  800003751 -------------------------------------------------*/
+   10          /* 如果要在程序中使用此代码,请在程序中注明使用了STC的资料及程序            */
+   11          /*---------------------------------------------------------------------*/
+   12          
+   13          #include  "APP_DMA_AD.h"
+   14          #include  "STC32G_GPIO.h"
+   15          #include  "STC32G_ADC.h"
+   16          #include  "STC32G_UART.h"
+   17          #include  "STC32G_DMA.h"
+   18          #include  "STC32G_NVIC.h"
+   19          
+   20          
+   21          /*************  功能说明  **************
+   22          
+   23          本程序演示多路ADC DMA采样.
+   24          
+   25          初始化时先把要ADC转换的引脚设置为高阻输入.
+   26          
+   27          设置数据批量传输(DMA)功能，所有通道一次循环采集的数据自动存放到DMA定义的xdata空间.
+   28          
+   29          通过串口2(P4.6 P4.7)将DMA定义的xdata空间所收到的数据发送给上位机，波特率115200,N,8,1
+   30          
+   31          用定时器做波特率发生器，建议使用1T模式(除非低波特率用12T)，并选择可被波特率整除的时钟频率，以提高精度.
+   32          
+   33          下载时, 选择时钟 24MHz (可以在配置文件"config.h"中修改).
+   34          
+   35          ******************************************/
+   36          
+   37          
+   38          //========================================================================
+   39          //                               本地常量声明 
+   40          //========================================================================
+   41          
+   42          #define ADC_CH    16      /* 1~16, ADC转换通道数, 需同步修改转换通道 */
+   43          #define ADC_DATA  12      /* 6~n, 每个通道ADC转换数据总数, 2*转换次数+4, 需同步修改转换次数 */
+   44          
+   45          //========================================================================
+   46          //                               本地变量声明
+   47          //========================================================================
+   48          
+   49          u8 chn = 0;
+   50          u8 xdata DmaAdBuffer[ADC_CH][ADC_DATA];
+   51          
+   52          //========================================================================
+   53          //                               本地函数声明
+   54          //========================================================================
+   55          
+   56          
+   57          //========================================================================
+   58          //                            外部函数和变量声明
+C251 COMPILER V5.60.0,  APP_DMA_AD                                                         26/11/24  21:24:43  PAGE 2   
+
+   59          //========================================================================
+   60          
+   61          
+   62          //========================================================================
+   63          // 函数: ADtoUART_init
+   64          // 描述: 用户初始化程序.
+   65          // 参数: None.
+   66          // 返回: None.
+   67          // 版本: V1.0, 2020-09-28
+   68          //========================================================================
+   69          void DMA_AD_init(void)
+   70          {
+   71   1        ADC_InitTypeDef   ADC_InitStructure;    //结构定义
+   72   1        COMx_InitDefine   COMx_InitStructure;   //结构定义
+   73   1        DMA_ADC_InitTypeDef   DMA_ADC_InitStructure;    //结构定义
+   74   1      
+   75   1        //----------------------------------------------
+   76   1        P0_MODE_IN_HIZ(GPIO_Pin_LOW | GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6);    //P0.0~P0.6 设置为高阻输入
+   77   1        P1_MODE_IN_HIZ(GPIO_Pin_All);   //P1.0~P1.7 设置为高阻输入
+   78   1        P4_MODE_IO_PU(GPIO_Pin_6 | GPIO_Pin_7);   //P4.6,P4.7 设置为准双向口
+   79   1        
+   80   1        //----------------------------------------------
+   81   1        COMx_InitStructure.UART_Mode      = UART_8bit_BRTx;   //模式,   UART_ShiftRight,UART_8bit_BRTx,UART_9bit,
+             -UART_9bit_BRTx
+   82   1      //  COMx_InitStructure.UART_BRT_Use   = BRT_Timer2;     //选择波特率发生器, BRT_Timer2 (注意: 串口2固定使用B
+             -RT_Timer2, 所以不用选择)
+   83   1        COMx_InitStructure.UART_BaudRate  = 115200ul;     //波特率,     110 ~ 115200
+   84   1        COMx_InitStructure.UART_RxEnable  = ENABLE;       //接收允许,   ENABLE 或 DISABLE
+   85   1        UART_Configuration(UART2, &COMx_InitStructure);   //初始化串口2 UART1,UART2,UART3,UART4
+   86   1        NVIC_UART2_Init(ENABLE,Priority_1);   //中断使能, ENABLE/DISABLE; 优先级(低到高) Priority_0,Priority_1,Pr
+             -iority_2,Priority_3
+   87   1      
+   88   1        //----------------------------------------------
+   89   1        ADC_InitStructure.ADC_SMPduty   = 31;   //ADC 模拟信号采样时间控制, 0~31（注意： SMPDUTY 一定不能设置小于
+             - 10）
+   90   1        ADC_InitStructure.ADC_CsSetup   = 0;    //ADC 通道选择时间控制 0(默认),1
+   91   1        ADC_InitStructure.ADC_CsHold    = 1;    //ADC 通道选择保持时间控制 0,1(默认),2,3
+   92   1        ADC_InitStructure.ADC_Speed     = ADC_SPEED_2X16T;    //设置 ADC 工作时钟频率 ADC_SPEED_2X1T~ADC_SPEED_2X1
+             -6T
+   93   1        ADC_InitStructure.ADC_AdjResult = ADC_RIGHT_JUSTIFIED;  //ADC结果调整,  ADC_LEFT_JUSTIFIED,ADC_RIGHT_JUSTI
+             -FIED
+   94   1        ADC_Inilize(&ADC_InitStructure);    //初始化
+   95   1        ADC_PowerControl(ENABLE);           //ADC电源开关, ENABLE或DISABLE
+   96   1        NVIC_ADC_Init(DISABLE,Priority_0);    //中断使能, ENABLE/DISABLE; 优先级(低到高) Priority_0,Priority_1,Pri
+             -ority_2,Priority_3
+   97   1      
+   98   1        //----------------------------------------------
+   99   1        DMA_ADC_InitStructure.DMA_Enable = ENABLE;      //DMA使能   ENABLE,DISABLE
+  100   1        DMA_ADC_InitStructure.DMA_Channel = 0xffff;     //ADC通道使能寄存器, 1:使能, bit15~bit0 对应 ADC15~ADC0
+  101   1        DMA_ADC_InitStructure.DMA_Buffer = (u16)DmaAdBuffer;  //ADC转换数据存储地址
+  102   1        DMA_ADC_InitStructure.DMA_Times = ADC_4_Times;  //每个通道转换次数, ADC_1_Times,ADC_2_Times,ADC_4_Times,A
+             -DC_8_Times,ADC_16_Times,ADC_32_Times,ADC_64_Times,ADC_128_Times,ADC_256_Times
+  103   1        DMA_ADC_Inilize(&DMA_ADC_InitStructure);    //初始化
+  104   1        NVIC_DMA_ADC_Init(ENABLE,Priority_0,Priority_0);    //中断使能, ENABLE/DISABLE; 优先级(低到高) Priority_0~
+             -Priority_3; 总线优先级(低到高) Priority_0~Priority_3
+  105   1        DMA_ADC_TRIG();   //触发启动转换
+  106   1      }
+  107          
+  108          //========================================================================
+  109          // 函数: Sample_DMA_AD
+  110          // 描述: 用户应用程序.
+  111          // 参数: None.
+  112          // 返回: None.
+  113          // 版本: V1.0, 2020-09-24
+  114          //========================================================================
+  115          void Sample_DMA_AD(void)
+C251 COMPILER V5.60.0,  APP_DMA_AD                                                         26/11/24  21:24:43  PAGE 3   
+
+  116          {
+  117   1        u8  i,n;
+  118   1      
+  119   1        if(DmaADCFlag)
+  120   1        {
+  121   2          DmaADCFlag = 0;
+  122   2          for(i=0; i<ADC_CH; i++)
+  123   2          {
+  124   3            for(n=0; n<ADC_DATA; n++)
+  125   3            {
+  126   4              printf("0x%02bx ",DmaAdBuffer[i][n]);   //第1组数据,...,第n组数据,AD通道,平均余数,平均值
+  127   4            }
+  128   3            printf("\r\n");
+  129   3          }
+  130   2          printf("\r\n");
+  131   2          DMA_ADC_TRIG();   //重新触发启动转换
+  132   2        }
+  133   1      }
+  134          
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       270     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =       192     ------
+  xdata-const size     =    ------     ------
+  edata size           =         1         20
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =        17     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

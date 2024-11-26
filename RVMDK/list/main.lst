@@ -1,0 +1,102 @@
+C251 COMPILER V5.60.0,  main                                                               26/11/24  21:46:51  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE main
+OBJECT MODULE PLACED IN .\list\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C251\BIN\C251.EXE ..\User\main.c XSMALL INTR2 BROWSE INCDIR(..\Driver\inc;..\User;..\App
+                    -\inc) DEBUG PRINT(.\list\main.lst) TABS(2) OBJECT(.\list\main.obj) 
+
+stmt  level    source
+
+    1          /*---------------------------------------------------------------------*/
+    2          /* --- STC MCU Limited ------------------------------------------------*/
+    3          /* --- STC 1T Series MCU Demo Programme -------------------------------*/
+    4          /* --- Mobile: (86)13922805190 ----------------------------------------*/
+    5          /* --- Fax: 86-0513-55012956,55012947,55012969 ------------------------*/
+    6          /* --- Tel: 86-0513-55012928,55012929,55012966 ------------------------*/
+    7          /* --- Web: www.STCMCU.com --------------------------------------------*/
+    8          /* --- Web: www.STCMCUDATA.com  ---------------------------------------*/
+    9          /* --- QQ:  800003751 -------------------------------------------------*/
+   10          /* 如果要在程序中使用此代码,请在程序中注明使用了STC的资料及程序            */
+   11          /*---------------------------------------------------------------------*/
+   12          
+   13          #include  "config.h"
+   14          #include  "Task.h"
+   15          #include  "System_init.h"\
+   16          #include  "STC32G_GPIO.h"
+   17          #include  "STC32G_NVIC.h"
+   18          #include  "STC32G_I2C.h"
+   19          
+   20          //========================================================================
+   21          // Define: init gpio
+   22          // Desc: 
+   23          // Data: 
+   24          // Return: 
+   25          // Ver: V1.0
+   26          //========================================================================
+   27          void start_gpio(void)
+   28          {
+   29   1        P0_MODE_IO_PU(GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2);
+   30   1      }
+   31          //========================================================================
+   32          // Define: start i2c master
+   33          // Desc: 
+   34          // Data: 
+   35          // Return: 
+   36          // Ver: V1.0
+   37          //========================================================================
+   38          void start_i2c(void)
+   39          {
+   40   1        I2C_InitTypeDef I2C_InitStruct;
+   41   1        I2C_InitStruct.I2C_Enable = ENABLE;
+   42   1        I2C_InitStruct.I2C_Mode = I2C_Mode_Master;
+   43   1        I2C_InitStruct.I2C_MS_WDTA = DISABLE;
+   44   1        I2C_Init(&I2C_InitStruct);
+   45   1        NVIC_I2C_Init(I2C_Mode_Master, ENABLE, Priority_0);
+   46   1      }
+   47          
+   48          //========================================================================
+   49          // 函数: void main(void)
+   50          // 描述: 主函数程序.
+   51          // 参数: None.
+   52          // 返回: None.
+   53          // 版本: V1.0, 2012-10-22
+   54          //========================================================================
+   55          void main(void)
+   56          {
+   57   1        WTST = 0;   //设置程序指令延时参数，赋值为0可将CPU执行指令的速度设置为最快
+   58   1        EAXSFR();   //扩展SFR(XFR)访问使能 
+C251 COMPILER V5.60.0,  main                                                               26/11/24  21:46:51  PAGE 2   
+
+   59   1        CKCON = 0;      //提高访问XRAM速度
+   60   1      
+   61   1        SYS_Init();
+   62   1        
+   63   1        start_i2c();
+   64   1        EA = 1;
+   65   1        
+   66   1      }
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =        57     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =    ------          6
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =    ------     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
