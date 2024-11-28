@@ -1,0 +1,238 @@
+C251 COMPILER V5.60.0,  APP_DMA_UART                                                       26/11/24  22:56:05  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE APP_DMA_UART
+OBJECT MODULE PLACED IN .\list\APP_DMA_UART.obj
+COMPILER INVOKED BY: C:\Keil_v5\C251\BIN\C251.EXE ..\App\src\APP_DMA_UART.c XSMALL INTR2 BROWSE INCDIR(..\Driver\inc;..\
+                    -User;..\App\inc) DEBUG PRINT(.\list\APP_DMA_UART.lst) TABS(2) OBJECT(.\list\APP_DMA_UART.obj) 
+
+stmt  level    source
+
+    1          /*---------------------------------------------------------------------*/
+    2          /* --- STC MCU Limited ------------------------------------------------*/
+    3          /* --- STC 1T Series MCU Demo Programme -------------------------------*/
+    4          /* --- Mobile: (86)13922805190 ----------------------------------------*/
+    5          /* --- Fax: 86-0513-55012956,55012947,55012969 ------------------------*/
+    6          /* --- Tel: 86-0513-55012928,55012929,55012966 ------------------------*/
+    7          /* --- Web: www.STCMCU.com --------------------------------------------*/
+    8          /* --- Web: www.STCMCUDATA.com  ---------------------------------------*/
+    9          /* --- QQ:  800003751 -------------------------------------------------*/
+   10          /* Èç¹ûÒªÔÚ³ÌÐòÖÐÊ¹ÓÃ´Ë´úÂë,ÇëÔÚ³ÌÐòÖÐ×¢Ã÷Ê¹ÓÃÁËSTCµÄ×ÊÁÏ¼°³ÌÐò            */
+   11          /*---------------------------------------------------------------------*/
+   12          
+   13          #include  "APP_DMA_UART.h"
+   14          #include  "STC32G_GPIO.h"
+   15          #include  "STC32G_UART.h"
+   16          #include  "STC32G_NVIC.h"
+   17          #include  "STC32G_DMA.h"
+   18          
+   19          
+   20          /*************  ¹¦ÄÜËµÃ÷  **************
+   21          
+   22          Í¨¹ýPCÏòMCU·¢ËÍÊý¾Ý, MCU½«ÊÕµ½µÄÊý¾Ý×Ô¶¯´æÈëDMA¿Õ¼ä.
+   23          
+   24          µ±DMA¿Õ¼ä´æÂúÉèÖÃ´óÐ¡µÄÄÚÈÝºó£¬Í¨¹ý´®¿ÚµÄDMA×Ô¶¯·¢ËÍ¹¦ÄÜ°Ñ´æ´¢¿Õ¼äµÄÊý¾ÝÔ­Ñù·µ»Ø.
+   25          
+   26          ÓÃ¶¨Ê±Æ÷×ö²¨ÌØÂÊ·¢ÉúÆ÷£¬½¨ÒéÊ¹ÓÃ1TÄ£Ê½(³ý·ÇµÍ²¨ÌØÂÊÓÃ12T)£¬²¢Ñ¡Ôñ¿É±»²¨ÌØÂÊÕû³ýµÄÊ±ÖÓÆµÂÊ£¬ÒÔÌá¸ß¾«¶È¡£
+   27          
+   28          ÏÂÔØÊ±, Ñ¡ÔñÊ±ÖÓ 24MHz (¿ÉÒÔÔÚÅäÖÃÎÄ¼þ"config.h"ÖÐÐÞ¸Ä).
+   29          
+   30          ******************************************/
+   31          
+   32          
+   33          //========================================================================
+   34          //                               ±¾µØ³£Á¿ÉùÃ÷ 
+   35          //========================================================================
+   36          
+   37          
+   38          //========================================================================
+   39          //                               ±¾µØ±äÁ¿ÉùÃ÷
+   40          //========================================================================
+   41          
+   42          u8 xdata DmaBuffer[256];  //ÊÕ·¢¹²ÓÃ»º´æ£¬Í¬Ê±Ê¹ÓÃ¶àÂ·´®¿ÚÊ±Ã¿¸ö´®¿ÚÐè·Ö±ð¶¨Òå»º´æ£¬ÒÔÃâÏà»¥¸ÉÈÅ
+   43          
+   44          //========================================================================
+   45          //                               ±¾µØº¯ÊýÉùÃ÷
+   46          //========================================================================
+   47          
+   48          
+   49          //========================================================================
+   50          //                            Íâ²¿º¯ÊýºÍ±äÁ¿ÉùÃ÷
+   51          //========================================================================
+   52          
+   53          
+   54          //========================================================================
+   55          // º¯Êý: DMA_UART_init
+   56          // ÃèÊö: ÓÃ»§³õÊ¼»¯³ÌÐò.
+   57          // ²ÎÊý: None.
+   58          // ·µ»Ø: None.
+C251 COMPILER V5.60.0,  APP_DMA_UART                                                       26/11/24  22:56:05  PAGE 2   
+
+   59          // °æ±¾: V1.0, 2021-05-27
+   60          //========================================================================
+   61          void DMA_UART_init(void)
+   62          {
+   63   1        u16 i;
+   64   1        COMx_InitDefine   COMx_InitStructure;         //½á¹¹¶¨Òå
+   65   1        DMA_UART_InitTypeDef    DMA_UART_InitStructure;   //½á¹¹¶¨Òå
+   66   1        
+   67   1        //----------------------------------------------
+   68   1      //  P3_MODE_IO_PU(GPIO_Pin_0 | GPIO_Pin_1); //P3.0,P3.1 ÉèÖÃÎª×¼Ë«Ïò¿Ú - UART1
+   69   1        P4_MODE_IO_PU(GPIO_Pin_6 | GPIO_Pin_7);   //P4.6,P4.7 ÉèÖÃÎª×¼Ë«Ïò¿Ú - UART2
+   70   1      //  P0_MODE_IO_PU(GPIO_Pin_0 | GPIO_Pin_1); //P0.0,P0.1 ÉèÖÃÎª×¼Ë«Ïò¿Ú - UART3
+   71   1      //  P0_MODE_IO_PU(GPIO_Pin_2 | GPIO_Pin_3); //P0.2,P0.3 ÉèÖÃÎª×¼Ë«Ïò¿Ú - UART4
+   72   1        
+   73   1        //----------------------------------------------
+   74   1        COMx_InitStructure.UART_Mode      = UART_8bit_BRTx; //Ä£Ê½,   UART_ShiftRight,UART_8bit_BRTx,UART_9bit,U
+             -ART_9bit_BRTx
+   75   1        COMx_InitStructure.UART_BRT_Use   = BRT_Timer2;     //Ñ¡Ôñ²¨ÌØÂÊ·¢ÉúÆ÷, BRT_Timer1, BRT_Timer2 (×¢Òâ: ´®¿Ú
+             -2¹Ì¶¨Ê¹ÓÃBRT_Timer2)
+   76   1        COMx_InitStructure.UART_BaudRate  = 115200ul;     //²¨ÌØÂÊ,     110 ~ 115200
+   77   1        COMx_InitStructure.UART_RxEnable  = ENABLE;       //½ÓÊÕÔÊÐí,   ENABLE»òDISABLE
+   78   1      //  UART_Configuration(UART1, &COMx_InitStructure);   //³õÊ¼»¯´®¿Ú UART1,UART2,UART3,UART4
+   79   1      //  NVIC_UART1_Init(ENABLE,Priority_0);   //ÖÐ¶ÏÊ¹ÄÜ, ENABLE/DISABLE; ÓÅÏÈ¼¶(µÍµ½¸ß) Priority_0,Priority_1,
+             -Priority_2,Priority_3
+   80   1        UART_Configuration(UART2, &COMx_InitStructure);   //³õÊ¼»¯´®¿Ú UART1,UART2,UART3,UART4
+   81   1        NVIC_UART2_Init(ENABLE,Priority_0);   //ÖÐ¶ÏÊ¹ÄÜ, ENABLE/DISABLE; ÓÅÏÈ¼¶(µÍµ½¸ß) Priority_0,Priority_1,Pr
+             -iority_2,Priority_3
+   82   1      //  UART_Configuration(UART3, &COMx_InitStructure);   //³õÊ¼»¯´®¿Ú UART1,UART2,UART3,UART4
+   83   1      //  NVIC_UART3_Init(ENABLE,Priority_0);   //ÖÐ¶ÏÊ¹ÄÜ, ENABLE/DISABLE; ÓÅÏÈ¼¶(µÍµ½¸ß) Priority_0,Priority_1,
+             -Priority_2,Priority_3
+   84   1      //  UART_Configuration(UART4, &COMx_InitStructure);   //³õÊ¼»¯´®¿Ú UART1,UART2,UART3,UART4
+   85   1      //  NVIC_UART4_Init(ENABLE,Priority_0);   //ÖÐ¶ÏÊ¹ÄÜ, ENABLE/DISABLE; ÓÅÏÈ¼¶(µÍµ½¸ß) Priority_0,Priority_1,
+             -Priority_2,Priority_3
+   86   1      
+   87   1        printf("STC32G UART DMA Test Programme!\r\n");  //UART·¢ËÍÒ»¸ö×Ö·û´®
+   88   1      
+   89   1        //----------------------------------------------
+   90   1        DMA_UART_InitStructure.DMA_TX_Length = 255;       //DMA´«Êä×Ü×Ö½ÚÊý   (0~65535) + 1
+   91   1        DMA_UART_InitStructure.DMA_TX_Buffer = (u16)DmaBuffer;  //·¢ËÍÊý¾Ý´æ´¢µØÖ·
+   92   1        DMA_UART_InitStructure.DMA_RX_Length = 255;       //DMA´«Êä×Ü×Ö½ÚÊý   (0~65535) + 1
+   93   1        DMA_UART_InitStructure.DMA_RX_Buffer = (u16)DmaBuffer;  //½ÓÊÕÊý¾Ý´æ´¢µØÖ·
+   94   1        DMA_UART_InitStructure.DMA_TX_Enable = ENABLE;    //DMAÊ¹ÄÜ   ENABLE,DISABLE
+   95   1        DMA_UART_InitStructure.DMA_RX_Enable = ENABLE;    //DMAÊ¹ÄÜ   ENABLE,DISABLE
+   96   1      //  DMA_UART_Inilize(UART1, &DMA_UART_InitStructure); //³õÊ¼»¯
+   97   1        DMA_UART_Inilize(UART2, &DMA_UART_InitStructure); //³õÊ¼»¯
+   98   1      //  DMA_UART_Inilize(UART3, &DMA_UART_InitStructure); //³õÊ¼»¯
+   99   1      //  DMA_UART_Inilize(UART4, &DMA_UART_InitStructure); //³õÊ¼»¯
+  100   1      
+  101   1      //  NVIC_DMA_UART1_Tx_Init(ENABLE,Priority_0,Priority_0);   //ÖÐ¶ÏÊ¹ÄÜ, ENABLE/DISABLE; ÓÅÏÈ¼¶(µÍµ½¸ß) Prio
+             -rity_0~Priority_3; ×ÜÏßÓÅÏÈ¼¶(µÍµ½¸ß) Priority_0~Priority_3
+  102   1      //  NVIC_DMA_UART1_Rx_Init(ENABLE,Priority_0,Priority_0);   //ÖÐ¶ÏÊ¹ÄÜ, ENABLE/DISABLE; ÓÅÏÈ¼¶(µÍµ½¸ß) Prio
+             -rity_0~Priority_3; ×ÜÏßÓÅÏÈ¼¶(µÍµ½¸ß) Priority_0~Priority_3
+  103   1        NVIC_DMA_UART2_Tx_Init(ENABLE,Priority_0,Priority_0);   //ÖÐ¶ÏÊ¹ÄÜ, ENABLE/DISABLE; ÓÅÏÈ¼¶(µÍµ½¸ß) Priori
+             -ty_0~Priority_3; ×ÜÏßÓÅÏÈ¼¶(µÍµ½¸ß) Priority_0~Priority_3
+  104   1        NVIC_DMA_UART2_Rx_Init(ENABLE,Priority_0,Priority_0);   //ÖÐ¶ÏÊ¹ÄÜ, ENABLE/DISABLE; ÓÅÏÈ¼¶(µÍµ½¸ß) Priori
+             -ty_0~Priority_3; ×ÜÏßÓÅÏÈ¼¶(µÍµ½¸ß) Priority_0~Priority_3
+  105   1      //  NVIC_DMA_UART3_Tx_Init(ENABLE,Priority_0,Priority_0);   //ÖÐ¶ÏÊ¹ÄÜ, ENABLE/DISABLE; ÓÅÏÈ¼¶(µÍµ½¸ß) Prio
+             -rity_0~Priority_3; ×ÜÏßÓÅÏÈ¼¶(µÍµ½¸ß) Priority_0~Priority_3
+  106   1      //  NVIC_DMA_UART3_Rx_Init(ENABLE,Priority_0,Priority_0);   //ÖÐ¶ÏÊ¹ÄÜ, ENABLE/DISABLE; ÓÅÏÈ¼¶(µÍµ½¸ß) Prio
+             -rity_0~Priority_3; ×ÜÏßÓÅÏÈ¼¶(µÍµ½¸ß) Priority_0~Priority_3
+  107   1      //  NVIC_DMA_UART4_Tx_Init(ENABLE,Priority_0,Priority_0);   //ÖÐ¶ÏÊ¹ÄÜ, ENABLE/DISABLE; ÓÅÏÈ¼¶(µÍµ½¸ß) Prio
+             -rity_0~Priority_3; ×ÜÏßÓÅÏÈ¼¶(µÍµ½¸ß) Priority_0~Priority_3
+  108   1      //  NVIC_DMA_UART4_Rx_Init(ENABLE,Priority_0,Priority_0);   //ÖÐ¶ÏÊ¹ÄÜ, ENABLE/DISABLE; ÓÅÏÈ¼¶(µÍµ½¸ß) Prio
+             -rity_0~Priority_3; ×ÜÏßÓÅÏÈ¼¶(µÍµ½¸ß) Priority_0~Priority_3
+  109   1      
+  110   1      //  DMA_UR1R_CLRFIFO();   //Çå¿Õ DMA FIFO
+C251 COMPILER V5.60.0,  APP_DMA_UART                                                       26/11/24  22:56:05  PAGE 3   
+
+  111   1        DMA_UR2R_CLRFIFO();   //Çå¿Õ DMA FIFO
+  112   1      //  DMA_UR3R_CLRFIFO();   //Çå¿Õ DMA FIFO
+  113   1      //  DMA_UR4R_CLRFIFO();   //Çå¿Õ DMA FIFO
+  114   1        //----------------------------------------------
+  115   1        DmaTx1Flag = 0;
+  116   1        DmaRx1Flag = 0;
+  117   1        DmaTx2Flag = 0;
+  118   1        DmaRx2Flag = 0;
+  119   1        DmaTx3Flag = 0;
+  120   1        DmaRx3Flag = 0;
+  121   1        DmaTx4Flag = 0;
+  122   1        DmaRx4Flag = 0;
+  123   1        for(i=0; i<256; i++)
+  124   1        {
+  125   2          DmaBuffer[i] = i;
+  126   2        }
+  127   1      //  DMA_UR1T_TRIG();  //´¥·¢UART1·¢ËÍ¹¦ÄÜ
+  128   1      //  DMA_UR1R_TRIG();  //´¥·¢UART1½ÓÊÕ¹¦ÄÜ
+  129   1        DMA_UR2T_TRIG();  //´¥·¢UART2·¢ËÍ¹¦ÄÜ
+  130   1        DMA_UR2R_TRIG();  //´¥·¢UART2½ÓÊÕ¹¦ÄÜ
+  131   1      //  DMA_UR3T_TRIG();  //´¥·¢UART3·¢ËÍ¹¦ÄÜ
+  132   1      //  DMA_UR3R_TRIG();  //´¥·¢UART3½ÓÊÕ¹¦ÄÜ
+  133   1      //  DMA_UR4T_TRIG();  //´¥·¢UART4·¢ËÍ¹¦ÄÜ
+  134   1      //  DMA_UR4R_TRIG();  //´¥·¢UART4½ÓÊÕ¹¦ÄÜ
+  135   1      }
+  136          
+  137          //========================================================================
+  138          // º¯Êý: Sample_DMA_UART
+  139          // ÃèÊö: ÓÃ»§Ó¦ÓÃ³ÌÐò.
+  140          // ²ÎÊý: None.
+  141          // ·µ»Ø: None.
+  142          // °æ±¾: V1.0, 2021-05-27
+  143          //========================================================================
+  144          void Sample_DMA_UART(void)
+  145          {
+  146   1        if((DmaTx1Flag) && (DmaRx1Flag))  //Êý¾ÝÐèÒª¼°Ê±´¦Àí£¬Ê¹ÓÃÑÓÊ±»òÕß¶¨Ê±Æ÷ÖÜÆÚÐÔ´¦Àí£¬¿ÉÄÜÖØÐÂ´¥·¢²»¼°Ê±µ¼Ö
+             -ÂÍâ²¿Á¬ÐøÊÕ·¢µÄ²¿·ÖÊý¾Ý¶ªÊ§
+  147   1        {
+  148   2          DmaTx1Flag = 0;
+  149   2          DmaRx1Flag = 0;
+  150   2          DMA_UR1T_TRIG();  //ÖØÐÂ´¥·¢UART1·¢ËÍ¹¦ÄÜ£¬¿ÉÔÚDMAÖÐ¶ÏÀï¼°Ê±´¦Àí
+  151   2          DMA_UR1R_TRIG();  //ÖØÐÂ´¥·¢UART1½ÓÊÕ¹¦ÄÜ£¬¿ÉÔÚDMAÖÐ¶ÏÀï¼°Ê±´¦Àí
+  152   2        }
+  153   1      
+  154   1        if((DmaTx2Flag) && (DmaRx2Flag))  //Êý¾ÝÐèÒª¼°Ê±´¦Àí£¬Ê¹ÓÃÑÓÊ±»òÕß¶¨Ê±Æ÷ÖÜÆÚÐÔ´¦Àí£¬¿ÉÄÜÖØÐÂ´¥·¢²»¼°Ê±µ¼Ö
+             -ÂÍâ²¿Á¬ÐøÊÕ·¢µÄ²¿·ÖÊý¾Ý¶ªÊ§
+  155   1        {
+  156   2          DmaTx2Flag = 0;
+  157   2          DmaRx2Flag = 0;
+  158   2          DMA_UR2T_TRIG();  //ÖØÐÂ´¥·¢UART2·¢ËÍ¹¦ÄÜ£¬¿ÉÔÚDMAÖÐ¶ÏÀï¼°Ê±´¦Àí
+  159   2          DMA_UR2R_TRIG();  //ÖØÐÂ´¥·¢UART2½ÓÊÕ¹¦ÄÜ£¬¿ÉÔÚDMAÖÐ¶ÏÀï¼°Ê±´¦Àí
+  160   2        }
+  161   1      
+  162   1        if((DmaTx3Flag) && (DmaRx3Flag))  //Êý¾ÝÐèÒª¼°Ê±´¦Àí£¬Ê¹ÓÃÑÓÊ±»òÕß¶¨Ê±Æ÷ÖÜÆÚÐÔ´¦Àí£¬¿ÉÄÜÖØÐÂ´¥·¢²»¼°Ê±µ¼Ö
+             -ÂÍâ²¿Á¬ÐøÊÕ·¢µÄ²¿·ÖÊý¾Ý¶ªÊ§
+  163   1        {
+  164   2          DmaTx3Flag = 0;
+  165   2          DmaRx3Flag = 0;
+  166   2          DMA_UR3T_TRIG();  //ÖØÐÂ´¥·¢UART3·¢ËÍ¹¦ÄÜ£¬¿ÉÔÚDMAÖÐ¶ÏÀï¼°Ê±´¦Àí
+  167   2          DMA_UR3R_TRIG();  //ÖØÐÂ´¥·¢UART3½ÓÊÕ¹¦ÄÜ£¬¿ÉÔÚDMAÖÐ¶ÏÀï¼°Ê±´¦Àí
+  168   2        }
+  169   1      
+  170   1        if((DmaTx4Flag) && (DmaRx4Flag))  //Êý¾ÝÐèÒª¼°Ê±´¦Àí£¬Ê¹ÓÃÑÓÊ±»òÕß¶¨Ê±Æ÷ÖÜÆÚÐÔ´¦Àí£¬¿ÉÄÜÖØÐÂ´¥·¢²»¼°Ê±µ¼Ö
+             -ÂÍâ²¿Á¬ÐøÊÕ·¢µÄ²¿·ÖÊý¾Ý¶ªÊ§
+  171   1        {
+  172   2          DmaTx4Flag = 0;
+C251 COMPILER V5.60.0,  APP_DMA_UART                                                       26/11/24  22:56:05  PAGE 4   
+
+  173   2          DmaRx4Flag = 0;
+  174   2          DMA_UR4T_TRIG();  //ÖØÐÂ´¥·¢UART4·¢ËÍ¹¦ÄÜ£¬¿ÉÔÚDMAÖÐ¶ÏÀï¼°Ê±´¦Àí
+  175   2          DMA_UR4R_TRIG();  //ÖØÐÂ´¥·¢UART4½ÓÊÕ¹¦ÄÜ£¬¿ÉÔÚDMAÖÐ¶ÏÀï¼°Ê±´¦Àí
+  176   2        }
+  177   1      }
+  178          
+  179          
+  180          
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       371     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =       256     ------
+  xdata-const size     =    ------     ------
+  edata size           =    ------         19
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =        34     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

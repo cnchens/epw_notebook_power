@@ -1,0 +1,236 @@
+C251 COMPILER V5.60.0,  APP_LIN                                                            26/11/24  22:56:07  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE APP_LIN
+OBJECT MODULE PLACED IN .\list\APP_LIN.obj
+COMPILER INVOKED BY: C:\Keil_v5\C251\BIN\C251.EXE ..\App\src\APP_LIN.c XSMALL INTR2 BROWSE INCDIR(..\Driver\inc;..\User;
+                    -..\App\inc) DEBUG PRINT(.\list\APP_LIN.lst) TABS(2) OBJECT(.\list\APP_LIN.obj) 
+
+stmt  level    source
+
+    1          /*---------------------------------------------------------------------*/
+    2          /* --- STC MCU Limited ------------------------------------------------*/
+    3          /* --- STC 1T Series MCU Demo Programme -------------------------------*/
+    4          /* --- Mobile: (86)13922805190 ----------------------------------------*/
+    5          /* --- Fax: 86-0513-55012956,55012947,55012969 ------------------------*/
+    6          /* --- Tel: 86-0513-55012928,55012929,55012966 ------------------------*/
+    7          /* --- Web: www.STCMCU.com --------------------------------------------*/
+    8          /* --- Web: www.STCMCUDATA.com  ---------------------------------------*/
+    9          /* --- QQ:  800003751 -------------------------------------------------*/
+   10          /* 如果要在程序中使用此代码,请在程序中注明使用了STC的资料及程序            */
+   11          /*---------------------------------------------------------------------*/
+   12          
+   13          #include  "APP_LIN.h"
+   14          #include  "STC32G_LIN.h"
+   15          #include  "STC32G_GPIO.h"
+   16          #include  "STC32G_UART.h"
+   17          #include  "STC32G_NVIC.h"
+   18          #include  "STC32G_Switch.h"
+   19          
+   20          /*************   功能说明   ***************
+   21          
+   22          Lin主机模式收发测试：
+   23          按一下P32口按键, 主机发送完整一帧数据.
+   24          按一下P33口按键, 主机发送帧头并获取从机应答数据（合并成一串完整的帧）.
+   25          
+   26          Lin从机模式收发测试：
+   27          收到一个非本机应答的完整帧后通过串口2输出, 并保存到数据缓存.
+   28          收到一个本机应答的帧头后(例如：ID=0x12), 发送缓存数据进行应答.
+   29          
+   30          默认传输速率：9600波特率, 用户可自行修改.
+   31          
+   32          下载时, 选择时钟 24MHz (用户可在"config.h"修改频率).
+   33          
+   34          ******************************************/
+   35          
+   36          sbit SLP_N  = P5^2;     //0: Sleep
+   37          
+   38          //========================================================================
+   39          //                               本地常量声明 
+   40          //========================================================================
+   41          
+   42          #define LIN_MASTER_MODE   1    //0: 从机模式; 1: 主机模式
+   43          
+   44          //========================================================================
+   45          //                               本地变量声明
+   46          //========================================================================
+   47          
+   48          u8 Lin_ID;
+   49          u8 TX_BUF[8];
+   50          
+   51          //========================================================================
+   52          //                               本地函数声明
+   53          //========================================================================
+   54          
+   55          
+   56          //========================================================================
+   57          //                            外部函数和变量声明
+   58          //========================================================================
+C251 COMPILER V5.60.0,  APP_LIN                                                            26/11/24  22:56:07  PAGE 2   
+
+   59          
+   60          extern bit LinRxFlag;
+   61          
+   62          extern u8 Key1_cnt;
+   63          extern u8 Key2_cnt;
+   64          extern bit Key1_Flag;
+   65          extern bit Key2_Flag;
+   66          
+   67          //========================================================================
+   68          // 函数: LIN_init
+   69          // 描述: 用户初始化程序.
+   70          // 参数: None.
+   71          // 返回: None.
+   72          // 版本: V1.0, 2022-03-27
+   73          //========================================================================
+   74          void LIN_init(void)
+   75          {
+   76   1        LIN_InitTypeDef LIN_InitStructure;        //结构定义
+   77   1        COMx_InitDefine COMx_InitStructure;       //结构定义
+   78   1      
+   79   1        COMx_InitStructure.UART_Mode      = UART_8bit_BRTx;   //模式,   UART_ShiftRight,UART_8bit_BRTx,UART_9bit,
+             -UART_9bit_BRTx
+   80   1      //  COMx_InitStructure.UART_BRT_Use   = BRT_Timer2;     //选择波特率发生器, BRT_Timer2 (注意: 串口2固定使用B
+             -RT_Timer2, 所以不用选择)
+   81   1        COMx_InitStructure.UART_BaudRate  = 115200ul;     //波特率,     110 ~ 115200
+   82   1        COMx_InitStructure.UART_RxEnable  = ENABLE;       //接收允许,   ENABLE 或 DISABLE
+   83   1        UART_Configuration(UART2, &COMx_InitStructure);   //初始化串口2 UART1,UART2,UART3,UART4
+   84   1        NVIC_UART2_Init(ENABLE,Priority_1);   //中断使能, ENABLE/DISABLE; 优先级(低到高) Priority_0,Priority_1,Pr
+             -iority_2,Priority_3
+   85   1      
+   86   1      #if(LIN_MASTER_MODE==0)
+                 LIN_InitStructure.LIN_IE       = LIN_ALLIE; //LIN中断使能   LIN_LIDE/LIN_RDYE/LIN_ERRE/LIN_ABORTE/LIN_AL
+             -LIE,DISABLE
+               #else
+   89   1        LIN_InitStructure.LIN_IE       = DISABLE; //LIN中断使能   LIN_LIDE/LIN_RDYE/LIN_ERRE/LIN_ABORTE/LIN_ALLI
+             -E,DISABLE
+   90   1      #endif
+   91   1        LIN_InitStructure.LIN_Enable   = ENABLE;  //LIN功能使能   ENABLE,DISABLE
+   92   1        LIN_InitStructure.LIN_Baudrate = 9600;    //LIN波特率
+   93   1        LIN_InitStructure.LIN_HeadDelay = 1;      //帧头延时计数    0~(65535*1000)/MAIN_Fosc
+   94   1        LIN_InitStructure.LIN_HeadPrescaler = 1;  //帧头延时分频    0~63
+   95   1        LIN_Inilize(&LIN_InitStructure);          //LIN 初始化
+   96   1        
+   97   1        NVIC_LIN_Init(ENABLE,Priority_1);   //中断使能, ENABLE/DISABLE; 优先级(低到高) Priority_0,Priority_1,Prio
+             -rity_2,Priority_3
+   98   1        
+   99   1        P0_MODE_IO_PU(GPIO_Pin_2 | GPIO_Pin_3);   //P0.2,P0.3 设置为准双向口
+  100   1        P4_MODE_IO_PU(GPIO_Pin_6 | GPIO_Pin_7);   //P4.6,P4.7 设置为准双向口
+  101   1        P5_MODE_IO_PU(GPIO_Pin_2);    //P5.2 设置为准双向口
+  102   1        
+  103   1        P0_PULL_UP_ENABLE(GPIO_Pin_2 | GPIO_Pin_3);
+  104   1      
+  105   1        LIN_SW(LIN_P02_P03);        //LIN_P02_P03,LIN_P52_P53,LIN_P46_P47,LIN_P72_P73
+  106   1      
+  107   1        //====初始化数据=====
+  108   1        SLP_N = 1;
+  109   1        Lin_ID = 0x32;
+  110   1        TX_BUF[0] = 0x81;
+  111   1        TX_BUF[1] = 0x22;
+  112   1        TX_BUF[2] = 0x33;
+  113   1        TX_BUF[3] = 0x44;
+  114   1        TX_BUF[4] = 0x55;
+  115   1        TX_BUF[5] = 0x66;
+  116   1        TX_BUF[6] = 0x77;
+  117   1        TX_BUF[7] = 0x88;
+  118   1      }
+C251 COMPILER V5.60.0,  APP_LIN                                                            26/11/24  22:56:07  PAGE 3   
+
+  119          
+  120          //========================================================================
+  121          // 函数: Sample_LIN
+  122          // 描述: 用户应用程序.
+  123          // 参数: None.
+  124          // 返回: None.
+  125          // 版本: V1.0, 2022-03-27
+  126          //========================================================================
+  127          void Sample_LIN(void)
+  128          {
+  129   1        u8 i;
+  130   1      #if(LIN_MASTER_MODE==1)
+  131   1        if(!P32)
+  132   1        {
+  133   2          if(!Key1_Flag)
+  134   2          {
+  135   3            Key1_cnt++;
+  136   3            if(Key1_cnt > 50)
+  137   3            {
+  138   4              Key1_Flag = 1;
+  139   4              LinSendFrame(Lin_ID, TX_BUF);  //发送一串完整数据
+  140   4            }
+  141   3          }
+  142   2        }
+  143   1        else
+  144   1        {
+  145   2          Key1_cnt = 0;
+  146   2          Key1_Flag = 0;
+  147   2        }
+  148   1      
+  149   1        if(!P33)
+  150   1        {
+  151   2          if(!Key2_Flag)
+  152   2          {
+  153   3            Key2_cnt++;
+  154   3            if(Key2_cnt > 50)
+  155   3            {
+  156   4              Key2_Flag = 1;
+  157   4              LinSendHeaderRead(0x13,TX_BUF);  //发送帧头，获取数据帧，组成一个完整的帧
+  158   4              printf("接收如下：\r\n");
+  159   4              for(i=0; i<FRAME_LEN; i++)    printf("%02x ", TX_BUF[i]);
+  160   4              printf("\r\n");
+  161   4            }
+  162   3          }
+  163   2        }
+  164   1        else
+  165   1        {
+  166   2          Key2_cnt = 0;
+  167   2          Key2_Flag = 0;
+  168   2        }
+  169   1      #else
+                 u8 isr;
+               
+                 if(LinRxFlag == 1)
+                 {
+                   LinRxFlag = 0;
+                   isr = LinReadReg(LID);
+                   if(isr == 0x12)   //判断是否从机响应ID
+                   {
+                     LinTxResponse(TX_BUF);  //返回响应数据
+                   }
+                   else
+                   {
+                     LinReadFrame(TX_BUF);     //接收Lin总线数据
+                     printf("ID=0x%02X, 接收内容：\r\n",isr);
+                     for(i=0; i<FRAME_LEN; i++)    printf("%02x ", TX_BUF[i]);
+C251 COMPILER V5.60.0,  APP_LIN                                                            26/11/24  22:56:07  PAGE 4   
+
+                     printf("\r\n");
+                   }
+                 }
+               #endif
+  189   1      }
+  190          
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       324     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =         9         15
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =        22     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
